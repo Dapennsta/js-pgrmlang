@@ -131,4 +131,56 @@ function evaluate(expr, env) {
   }
 }
 
+// specialForms object will be used to define the syntax of Egg
+// associating words with functions evaluating such special forms
+
 var specialForms = Object.create(null);
+
+// if construct expects 3 arguments
+// first is if statement itself then two paths
+// will follow first path if evaluated to true and second if false
+// only handles false boolean
+// similar to JS ?: operator
+specialForms["if"] = function (args, env) {
+  if (args.length != 3)
+    throw new SyntaxError("Bad number of args to if");
+    
+  if (evaluate(args[0], env) !== false)
+    return evaluate(args[1], env);
+  else
+    return evaluate(args[2], env);
+};
+
+// while construct similar to if
+// expects 2 arguments
+specialForms["while"] = function(args, env) {
+  if (args.length != 2)
+    throw new SyntaxError("Bad number of args to while");
+  
+  while (evaluate(args[0], env) !== false)
+    evaluate(args[1], env);
+    
+  // Since undefined does not exist, return false for lack of meaningful result
+  return false;
+};
+
+// do construct will execute all arguments inline
+// will return value produced by last argument
+specialForms["do"] = function(args, env) {
+  var value = false;
+  args.forEach(function(arg) {
+    value = evaluate(arg, env);
+  });
+  return value;
+};
+
+// define construct will allow variable construction
+// expects a word as first argument and expression evaluating to a value for that word as second
+// will return assigned value
+specialForms["define"] = function(args, env) {
+  if (args.length != 2 || args[0].type != "word")
+    throw new SyntaxError("Bad use of define");
+  var value = evaluate(args[1], env);
+  env[args[0].name] = value;
+  return value;
+};
