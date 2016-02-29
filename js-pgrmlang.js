@@ -184,3 +184,92 @@ specialForms["define"] = function(args, env) {
   env[args[0].name] = value;
   return value;
 };
+
+// Enviroment object will represent the scope of the program
+// containing variable and function names with their values
+
+var topEnv = Object.create(null);
+
+// boolean values
+topEnv["true"] = true;
+topEnv["false"] = false;
+
+/* Boolean test
+
+var prog = parse("if(true, false, true)");
+console.log(evaluate(prog, topEnv));
+→ false
+
+*/
+
+// use new Function to synthesize basic arithmetic and comparison operators
+["+", "-", "*", "/", "==", "<", ">"].forEach(function(op) {
+  topEnv[op] = new Function("a, b", "return a " + op + " b;");
+});
+
+// simlar to python, use print to output values
+topEnv["print"] = function(value) {
+  console.log(value);
+  return value;
+};
+
+// run function provides a way to write and run program using a fresh environment
+// parses and evaluates strings as a single program
+// unlike normal functions we do not know how many arguments it will receive
+// using arguments word to represent them and Array.prototype.slice.call to turn
+// argurments object into array then join them with newline characters
+function run() {
+  var env = Object.create(topEnv);
+  var program = Array.prototype.slice.call(arguments, 0).join("\n");
+  return evaluate(parse(program), env);
+}
+
+/* Test program
+     computes the sum of the numbers 1 to 10
+
+run("do(define(total,0),",
+    "   define(count, 1),",
+    "   while(<(count,11),",
+    "         do(define(total, +(total, count)),",
+    "            define(count, +(count, 1)))),",
+    "   print(total))");
+→ 55
+
+*/
+
+// function construct creates it's own local environment building on the global scope
+// then evalutes the fuction body and returns result
+specialForms["fun"] = function(args, env) {
+  if (!args.length)
+    throw new SyntaxError("Functions need a body");
+  function name(expr) {
+    if (expr.type != "word")
+      throw new SyntaxError("Arg names must be words");
+    return expr.name;
+  }
+  var argNames = args.slice(0, args.length - 1).map(name);
+  var body = args[args.length - 1];
+  
+  return function() {
+    if (arguments.length != argNames.length)
+      throw new TypeError("Wrong number of arguments");
+    var localEnv = Object.create(env);
+    for (var i = 0; i < arguments.length; i++)
+      localEnv[argNames[i]] = arguments[i];
+    return evaluate(body, localEnv);
+  };
+};
+
+/* Test function add 1 to number
+run("do(define(plusOne, fun(a, +(a, 1))),",
+    "   print(plusOne(10)))");
+→ 11
+
+    Exponent function (recursive)
+run("do(define(pow, fun(base, exp,",
+    "       if(==(exp, 0),",
+    "         1,",
+    "         *(base, pow(base, -(exp, 1)))))),",
+    "   print(pow(2,10)))");
+→ 1024
+*/
