@@ -273,3 +273,30 @@ run("do(define(pow, fun(base, exp,",
     "   print(pow(2,10)))");
 → 1024
 */
+
+// Add support for arrays by using JS Array
+// include length and element functions
+topEnv["array"] = function() {
+  var arr = Array.prototype.slice.call(arguments);
+  return arr;
+};
+
+topEnv["length"] = function(arr) {
+  return arr.length;
+};
+
+topEnv["element"] = function(arr, elm) {
+  return arr[elm];
+};
+
+/* Test Array
+run("do(define(sum, fun(array,",
+    "     do(define(i, 0),",
+    "        define(sum, 0),",
+    "        while(<(i, length(array)),",
+    "          do(define(sum, +(sum, element(array, i))),",
+    "             define(i, +(i, 1)))),",
+    "        sum))),",
+    "   print(sum(array(1, 2, 3))))");
+ → 6 
+*/
