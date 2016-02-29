@@ -102,3 +102,33 @@ console.log(parse("+(a, 10)"));
   args: [ { type: 'word', name: 'a' }, { type: 'value', value: 10 } ] }
 
 */
+
+// Evaluator will run syntax tree of program using an environment object to associated names with
+// values. It will evaluate the expression and return the appropriate value
+
+function evaluate(expr, env) {
+  switch(expr.type) {
+    case "value":
+      return expr.value;
+      
+    case "word":
+      if (expr.name in env)
+        return env[expr.name];
+      else
+        throw new ReferenceError("Undefined variable: " + expr.name);
+    
+    // if operator is in a special form (if) pass the argument expression with the environment
+    // operator can also be normal form (normal function) which is verified and called the same as special form operators
+    case "apply":
+      if (expr.operator.type == "word" && expr.operator.name in specialForms)
+        return specialForms[expr.operator.name](expr.args, env);
+      var op = evaluate(expr.operator, env);
+      if (typeof op != "function")
+        throw new TypeError("Applying a non-function.");
+      return op.apply(null, expr.args.map(function(arg) {
+        return evaluate(arg, env);
+      }));
+  }
+}
+
+var specialForms = Object.create(null);
