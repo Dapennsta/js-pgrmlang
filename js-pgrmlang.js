@@ -50,12 +50,30 @@ function parseExpression(program) {
   return parseApply(expr, program.slice(match[0].length));
 }
 
-// Cut off any whitespace elements before the program string
+// Looks for anything other then whitespace and starts string at that point
+/*
 function skipSpace(string) {
   var first = string.search(/\S/);
   if (first == -1) return "";
   return string.slice(first);
 }
+*/
+
+// Looks for whitespace or a comment and starts string afterwards
+function skipSpace(string) {
+  var toSkip = string.match(/(\s|#.*)*/);
+  if (toSkip == -1) return "";
+  return string.slice(toSkip[0].length);
+}
+
+/* Comment Test
+console.log(parse("# hello\nx"));
+ → { type: 'word', name: 'x' }
+console.log(parse("a # one\n    # two \n()"));
+ → { type: 'apply',
+  operator: { type: 'word', name: 'a' },
+  args: [] }
+*/
 
 // Used in along with parseExpression to add arguments to an expression   
 function parseApply(expr, program) {
@@ -242,17 +260,24 @@ run("do(define(total,0),",
 specialForms["fun"] = function(args, env) {
   if (!args.length)
     throw new SyntaxError("Functions need a body");
+  // inside function used to map argument by name
   function name(expr) {
     if (expr.type != "word")
       throw new SyntaxError("Arg names must be words");
     return expr.name;
   }
+  // split up args into names and the body of the function
   var argNames = args.slice(0, args.length - 1).map(name);
   var body = args[args.length - 1];
   
   return function() {
     if (arguments.length != argNames.length)
       throw new TypeError("Wrong number of arguments");
+    // create a new localEnv variable containing the environment passed to the function
+    // this localEnv will have all the topEnv properties as well the any properties
+    // created as arugments for calling the and adds it's own arguments to localEnv
+    // this allows us to not only use the arguments by adding them to the environment passed
+    // to the evaluate call but also any variables in the scope of this function
     var localEnv = Object.create(env);
     for (var i = 0; i < arguments.length; i++)
       localEnv[argNames[i]] = arguments[i];
@@ -260,7 +285,7 @@ specialForms["fun"] = function(args, env) {
   };
 };
 
-/* Test function add 1 to number
+/*  Test function add 1 to number
 run("do(define(plusOne, fun(a, +(a, 1))),",
     "   print(plusOne(10)))");
 → 11
@@ -268,16 +293,24 @@ run("do(define(plusOne, fun(a, +(a, 1))),",
     Exponent function (recursive)
 run("do(define(pow, fun(base, exp,",
     "       if(==(exp, 0),",
-    "         1,",
+    "         1,", // ← return 1
     "         *(base, pow(base, -(exp, 1)))))),",
     "   print(pow(2,10)))");
 → 1024
+
+    Example of proper scope for functions
+    function f returns another function that uses an f local variable to
+    calcuate the sum demonstrating the inside function can access it's calling
+    functions scope
+run("do(define(f, fun(a, fun(b, +(a, b)))),",
+    "   print(f(4)(5)))");
+ → 9
 */
 
 // Add support for arrays by using JS Array
 // include length and element functions
 topEnv["array"] = function() {
-  var arr = Array.prototype.slice.call(arguments);
+  var arr = Array.prototype.slice.call(arguments, 0);
   return arr;
 };
 
@@ -289,7 +322,7 @@ topEnv["element"] = function(arr, elm) {
   return arr[elm];
 };
 
-/* Test Array
+/* Array Test
 run("do(define(sum, fun(array,",
     "     do(define(i, 0),",
     "        define(sum, 0),",
@@ -299,4 +332,34 @@ run("do(define(sum, fun(array,",
     "        sum))),",
     "   print(sum(array(1, 2, 3))))");
  → 6 
+*/
+
+// since our only way of using variables is 'define' which creates a variable
+// in the current scope, we cannot change nonlocal variables
+// this set form checks through all scopes for the argument variable
+// sets it's value if found or throws ReferenceError
+specialForms["set"] = function(args, env) {
+  if (args.length != 2 || args[0].type != "word")
+    throw new SyntaxError("Bad use of set");
+  var toSet = args[0].name;
+  var val = evaluate(args[1], env);
+  while (Object.getPrototypeOf(env) != null) {
+    if (Object.hasOwnProperty.call(env, toSet)) {
+      env[toSet] = val;
+      return val;
+    }
+    env = Object.getPrototypeOf(env);
+  }
+  throw new ReferenceError("Unknown variable: " + toSet);
+};
+
+/* Set test
+run("do( define(x, 4),",
+    "    define(setx, fun(val, set(x, val))),",
+    "    setx(50),",
+    "    print(x)   )");
+ → 50
+
+run("set(quux, true)");
+ → Some kind of ReferenceError
 */
